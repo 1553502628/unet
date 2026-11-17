@@ -413,17 +413,17 @@ class SpectralSpatialAttention(nn.Module):
         # Downsample query to match DWT resolution
         q_down = F.adaptive_avg_pool2d(query, (Hd, Wd))
 
-        # Low path: concat(key_ll, value_ll, q_down) → project → WFCA
+        # Low path: concat(key_ll, value_ll, q_down) → project → DCTAttention
         low_feat = torch.cat([key_ll, value_ll, q_down], dim=1)  # (B, 3*key_channels, H/2, W/2)
         low_feat = self.proj_low(low_feat)  # (B, value_channels, H/2, W/2)
-        low_feat = self.wfca(low_feat)
+        low_feat = self.dct_attention(low_feat)  # 【修改这里：低频改用 DCT 进行通道校准】
         low_feat = F.interpolate(low_feat, size=(H, W), mode='bilinear', align_corners=False)
         out_spatial = low_feat.flatten(2).permute(0, 2, 1) * self.pool_weight
 
-        # High path: concat(key_h, value_h) → project → DCTAttention
+        # High path: concat(key_h, value_h) → project → WFCA
         high_feat = torch.cat([key_h, value_h], dim=1)  # (B, 6*key_channels, H/2, W/2)
         high_feat = self.proj_high(high_feat)  # (B, value_channels, H/2, W/2)
-        high_feat = self.dct_attention(high_feat)
+        high_feat = self.wfca(high_feat)  # 【修改这里：高频改用 WFCA 捕捉边缘】
         high_feat = F.interpolate(high_feat, size=(H, W), mode='bilinear', align_corners=False)
         out_freq = high_feat.flatten(2).permute(0, 2, 1)
 
